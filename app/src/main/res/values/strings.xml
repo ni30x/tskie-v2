@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TSKIE</string>
+    <string name="heatmap_widget_name">Activity Heatmap</string>
+    <string name="heatmap_widget_description">Displays your task activity heatmap and completion history.</string>
+</resources>

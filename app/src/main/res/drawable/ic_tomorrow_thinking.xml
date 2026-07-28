@@ -1,0 +1,48 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Swirl (Thought cloud) -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="0.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M 12.5 3.5 C 14.5 3.0 15 1.0 13.5 1.0 C 11 1.0 10 2.0 11 3.5 C 12 5.0 14.5 4.0 14 2.5 C 13.5 1.0 11.5 1.5 12 3.0" />
+
+    <!-- Head -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="
+            M 12 4.5 A 2.5 2.5 0 1 1 11.99 4.5
+            M 11 8.0 Q 12 7.2 13 8.0 Q 12 7.6 11 8.0 Z" />
+
+    <!-- Tie -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 11.7 11.5 L 12.3 11.5 L 12.1 12.1 L 11.9 12.1 Z M 11.8 12.4 L 12.2 12.4 L 12.5 15.0 L 12 15.7 L 11.5 15.0 Z" />
+
+    <!-- Left Torso + Arm -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 11.4 11.5 L 11.1 15.0 L 11.6 16.0 L 11.6 18.0 L 9.2 18.0 L 9.2 13.0 L 7.8 14.9 L 9.8 17.2 A 0.6 0.6 0 0 1 9.0 18.0 L 6.5 15.0 L 9.2 11.5 Z" />
+
+    <!-- Right Torso + Arm -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 12.6 11.5 L 14.8 11.5 L 17.5 13.5 L 14.5 9.5 A 0.6 0.6 0 0 0 13.8 10.3 L 16.2 13.7 L 14.8 13.0 L 14.8 18.0 L 12.4 18.0 L 12.4 16.0 L 12.9 15.0 Z" />
+
+    <!-- Left Leg -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 9.8 18.0 L 11.0 18.0 L 10.2 23.0 A 0.6 0.6 0 0 1 9.0 23.0 Z" />
+
+    <!-- Right Leg -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 13.0 18.0 L 14.2 18.0 L 15.0 23.0 A 0.6 0.6 0 0 1 13.8 23.0 Z" />
+</vector>

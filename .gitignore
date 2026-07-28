@@ -1,0 +1,46 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# ─── Secrets & Credentials ───
+.env
+.env.*
+!.env.example
+only_key
+*.keystore
+*.jks
+debug.keystore
+secrets.*
+secret*
+**/secrets/**
+credentials.*
+*.p12
+*.pfx
+
+# ─── Logs & Debug ───
+*.log
+*.trace
+crashlytics-*
+*.hprof
+
+# ─── OS & Editor ───
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+*.orig
+
+# ─── Metadata that might contain keys ───
+metadata.json
+
+# ─── Android signing ───
+**/*.apk.idsig

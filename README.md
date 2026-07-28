@@ -1,7 +1,7 @@
 # TSKIE
 
 <p align="center">
-  <a href="[https://github.com/ni30x/tskie-v2/releases/lates](https://github.com/ni30x/tskie-v2/releases/download/apk/app-release.apk)t">
+  <a href="https://github.com/ni30x/tskie-v2/releases/download/apk/app-release.apk">
     <img src="https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android" alt="Download APK">
   </a>
   <a href="#">

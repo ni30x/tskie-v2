@@ -18,7 +18,7 @@ Grab the latest APK and side-load it on your Android device:
 
 | Step | Action |
 |:---|:---|
-| 1️⃣ | Download the APK from the [latest release](https://github.com/YOUR_USERNAME/tskie/releases/latest) |
+| 1️⃣ | Download the APK from the [latest release](https://github.com/ni30x/tskie-v2/releases/tag/apk) |
 | 2️⃣ | On your Android device, enable **Settings → Security → Install unknown apps** |
 | 3️⃣ | Open the downloaded APK and tap **Install** |
 

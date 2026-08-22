@@ -26,7 +26,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
+        run: ./gradlew :app:assembleDebug -Dorg.gradle.jvmargs="-Djava.awt.headless=true" --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

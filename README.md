@@ -1,11 +1,11 @@
 # TSKIE
 
 <p align="center">
-  <a href="https://github.com/ni30x/tskie-v2/releases/download/apk/app-release.apk">
+  <a href="https://github.com/ni30x/tskie-v2/releases/download/v1.1/app-debug.apk">
     <img src="https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android" alt="Download APK">
   </a>
-  <a href="#">
-    <img src="https://img.shields.io/badge/version-1.0-blue?style=for-the-badge" alt="Version 1.0">
+  <a href="https://github.com/ni30x/tskie-v2/releases/tag/v1.1">
+    <img src="https://img.shields.io/badge/version-1.1-blue?style=for-the-badge" alt="Version 1.1">
   </a>
   <a href="#">
     <img src="https://img.shields.io/badge/minSdk-24-orange?style=for-the-badge" alt="Min SDK 24">
@@ -18,7 +18,7 @@ Grab the latest APK and side-load it on your Android device:
 
 | Step | Action |
 |:---|:---|
-| 1️⃣ | Download the APK from the [latest release](https://github.com/ni30x/tskie-v2/releases/tag/apk) |
+| 1️⃣ | **[Download the Direct APK (v1.1)](https://github.com/ni30x/tskie-v2/releases/download/v1.1/app-debug.apk)** or view the [Latest Release Page](https://github.com/ni30x/tskie-v2/releases/tag/v1.1) |
 | 2️⃣ | On your Android device, enable **Settings → Security → Install unknown apps** |
 | 3️⃣ | Open the downloaded APK and tap **Install** |
 

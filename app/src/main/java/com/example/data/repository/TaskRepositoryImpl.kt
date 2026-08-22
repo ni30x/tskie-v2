@@ -31,17 +31,14 @@ class TaskRepositoryImpl(
 
     override suspend fun insertTask(task: Task) {
         taskDao.insertTask(task.toEntity())
-        notifyWidgetUpdate()
     }
 
     override suspend fun updateTask(task: Task) {
         taskDao.updateTask(task.toEntity())
-        notifyWidgetUpdate()
     }
 
     override suspend fun deleteTask(id: String) {
         taskDao.deleteTaskById(id)
-        notifyWidgetUpdate()
     }
 
     override suspend fun getPendingSyncTasks(): List<Task> {
@@ -50,22 +47,13 @@ class TaskRepositoryImpl(
 
     override suspend fun clearHistory() {
         taskDao.clearAllTasks()
-        notifyWidgetUpdate()
     }
 
     override suspend fun deleteTodayData(dateStr: String) {
         taskDao.deleteTasksByDate(dateStr)
-        notifyWidgetUpdate()
     }
 
     override suspend fun deleteTomorrowData(dateStr: String) {
         taskDao.deleteTasksByDate(dateStr)
-        notifyWidgetUpdate()
-    }
-
-    private fun notifyWidgetUpdate() {
-        context?.let {
-            com.example.widget.SafeWidgetUpdater.updateSafely(it)
-        }
     }
 }

@@ -13,6 +13,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE taskDate = :dateStr AND status != 'DELETED' ORDER BY createdAt ASC")
     fun getTasksForDate(dateStr: String): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks WHERE taskDate = :dateStr AND status = 'ACTIVE' ORDER BY createdAt ASC")
+    suspend fun getActiveTasksForDateOnce(dateStr: String): List<TaskEntity>
+
     @Query("SELECT * FROM tasks WHERE status != 'DELETED' ORDER BY createdAt ASC")
     fun getAllTasks(): Flow<List<TaskEntity>>
 

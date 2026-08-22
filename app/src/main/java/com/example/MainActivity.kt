@@ -51,10 +51,8 @@ class MainActivity : ComponentActivity() {
         // Initialize single notification channel "TSKIE Notifications"
         ReminderManager.initNotificationChannel(this)
         ReminderManager.scheduleWorkManagerPeriodicCheck(this)
-        
-        com.example.widget.SafeWidgetUpdater.updateSafely(this)
 
-        // Read initial intent target if app launched from notification or widget
+        // Read initial intent target if app launched from notification
         navTargetState.value = intent?.getStringExtra("navigation_target")
 
         setContent {

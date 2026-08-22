@@ -47,14 +47,6 @@ class TomorrowViewModel(application: Application) : AndroidViewModel(application
                     reminderEnabled = reminderEnabled
                 )
                 if (result.isSuccess) {
-                    val createdTask = result.getOrNull()
-                    if (createdTask != null) {
-                        com.example.reminder.ReminderManager.scheduleHourlyTaskReminder(
-                            getApplication(),
-                            createdTask.id,
-                            createdTask.title
-                        )
-                    }
                     com.example.analytics.AnalyticsManager.logEvent(getApplication(), "task_created")
                 }
             } catch (e: Exception) {
@@ -67,7 +59,6 @@ class TomorrowViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 deleteTaskUseCase(taskId)
-                com.example.reminder.ReminderManager.cancelTaskReminder(getApplication(), taskId)
                 com.example.analytics.AnalyticsManager.logEvent(getApplication(), "task_deleted")
             } catch (e: Exception) {
                 android.util.Log.e("TomorrowViewModel", "Error deleting task", e)

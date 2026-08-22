@@ -9,6 +9,7 @@ import com.example.domain.model.Task
 import com.example.domain.usecase.CompleteTaskUseCase
 import com.example.domain.usecase.DeleteTaskUseCase
 import com.example.domain.usecase.RestoreTaskUseCase
+import com.example.reminder.ReminderManager
 import com.example.util.DateUtil
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +35,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 completeTaskUseCase(taskId)
-                com.example.reminder.ReminderManager.cancelTaskReminder(getApplication(), taskId)
+                ReminderManager.scheduleTodayTasksReminder(getApplication())
                 com.example.analytics.AnalyticsManager.logEvent(getApplication(), "task_completed")
             } catch (e: Exception) {
                 android.util.Log.e("TodayViewModel", "Error completing task", e)
@@ -46,14 +47,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 restoreTaskUseCase(taskId)
-                val taskEntity = database.taskDao().getTaskById(taskId)
-                if (taskEntity != null && taskEntity.status == "ACTIVE") {
-                    com.example.reminder.ReminderManager.scheduleHourlyTaskReminder(
-                        getApplication(),
-                        taskEntity.id,
-                        taskEntity.title
-                    )
-                }
+                ReminderManager.scheduleTodayTasksReminder(getApplication())
                 com.example.analytics.AnalyticsManager.logEvent(getApplication(), "task_restored")
             } catch (e: Exception) {
                 android.util.Log.e("TodayViewModel", "Error restoring task", e)
@@ -65,7 +59,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 deleteTaskUseCase(taskId)
-                com.example.reminder.ReminderManager.cancelTaskReminder(getApplication(), taskId)
+                ReminderManager.scheduleTodayTasksReminder(getApplication())
                 com.example.analytics.AnalyticsManager.logEvent(getApplication(), "task_deleted")
             } catch (e: Exception) {
                 android.util.Log.e("TodayViewModel", "Error deleting task", e)

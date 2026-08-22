@@ -1,9 +1,13 @@
 package com.example.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tasks")
+@Entity(
+    tableName = "tasks",
+    indices = [Index("status"), Index("taskDate")]
+)
 data class TaskEntity(
     @PrimaryKey val id: String,
     val title: String,

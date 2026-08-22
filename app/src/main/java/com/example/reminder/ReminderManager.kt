@@ -12,6 +12,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.data.local.AppDatabase
+import com.example.util.DateUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ object ReminderManager {
     const val CHANNEL_ID = "tskie_notifications_channel"
     const val CHANNEL_NAME = "TSKIE Notifications"
     const val DAILY_PLANNING_NOTIFICATION_ID = 1001
+    const val TASK_REMINDER_NOTIFICATION_ID = 2001
 
     /**
      * Initializes the single required notification channel "TSKIE Notifications" with DEFAULT importance.
@@ -48,7 +50,6 @@ object ReminderManager {
     fun scheduleDailyPlanningReminder(context: Context, reminderTimeMs: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
 
-        // Extract hour and minute from reminderTimeMs or default to 8:00 PM (20:00)
         val calTime = Calendar.getInstance().apply {
             timeInMillis = reminderTimeMs
         }
@@ -119,67 +120,87 @@ object ReminderManager {
     }
 
     /**
-     * Schedules a specific task reminder.
+     * Schedules a single, consolidated reminder for all active tasks for TODAY only.
+     * If there are no active tasks for today or reminders are disabled, cancels the reminder alarm and dismisses notifications.
      */
-    fun scheduleTaskReminder(
+    fun scheduleTodayTasksReminder(
         context: Context,
-        taskId: String,
-        taskTitle: String,
-        delayMs: Long? = null
+        customDelayMs: Long? = null
     ) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-
-        val actualDelayMs = delayMs ?: (2 * 60 * 60 * 1000L) // Default 2 hours delay if unspecified
-        val triggerTimeMs = System.currentTimeMillis() + actualDelayMs
-
-        val intent = Intent(context, ReminderReceiver::class.java).apply {
-            putExtra(ReminderReceiver.EXTRA_REMINDER_TYPE, ReminderReceiver.TYPE_TASK)
-            putExtra(ReminderReceiver.EXTRA_REMINDER_TITLE, "Task Pending")
-            putExtra(ReminderReceiver.EXTRA_REMINDER_MESSAGE, "Don't forget to complete: $taskTitle")
-            putExtra(ReminderReceiver.EXTRA_TASK_ID, taskId)
-            putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, taskId.hashCode())
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            taskId.hashCode(),
-            intent,
-            getPendingIntentFlags()
-        )
-
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
-                } else {
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val db = AppDatabase.getDatabase(context)
+                val settings = db.settingsDao().getSettingsOnce()
+                if (settings == null || !settings.reminderEnabled) {
+                    cancelTodayTasksReminder(context)
+                    dismissTaskNotification(context)
+                    return@launch
                 }
-            } else {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
-            }
-        } catch (e: Exception) {
-            Log.e("ReminderManager", "Failed to schedule task reminder: ${e.message}")
-        }
-    }
 
-    fun scheduleHourlyTaskReminder(
-        context: Context,
-        taskId: String,
-        taskTitle: String,
-        delayMs: Long? = null
-    ) {
-        scheduleTaskReminder(context, taskId, taskTitle, delayMs)
+                val todayStr = DateUtil.getLogicalToday()
+                val activeTasks = db.taskDao().getActiveTasksForDateOnce(todayStr)
+                if (activeTasks.isEmpty()) {
+                    Log.d("ReminderManager", "No active tasks for today ($todayStr). Cancelling task reminders.")
+                    cancelTodayTasksReminder(context)
+                    dismissTaskNotification(context)
+                    return@launch
+                }
+
+                val intervalMs = customDelayMs ?: when (settings.reminderRepetition) {
+                    "1 Hr", "1 Hour" -> 1 * 60 * 60 * 1000L
+                    "2 Hr", "2 Hours" -> 2 * 60 * 60 * 1000L
+                    "3 Hr", "3 Hours" -> 3 * 60 * 60 * 1000L
+                    else -> 1 * 60 * 60 * 1000L
+                }
+
+                val triggerTimeMs = System.currentTimeMillis() + intervalMs
+                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return@launch
+
+                val intent = Intent(context, ReminderReceiver::class.java).apply {
+                    putExtra(ReminderReceiver.EXTRA_REMINDER_TYPE, ReminderReceiver.TYPE_TASK)
+                    putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, TASK_REMINDER_NOTIFICATION_ID)
+                }
+
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    TASK_REMINDER_NOTIFICATION_ID,
+                    intent,
+                    getPendingIntentFlags()
+                )
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (alarmManager.canScheduleExactAlarms()) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            triggerTimeMs,
+                            pendingIntent
+                        )
+                    } else {
+                        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
+                    }
+                } else {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerTimeMs,
+                        pendingIntent
+                    )
+                }
+                Log.d("ReminderManager", "Scheduled consolidated task reminder in ${intervalMs / 1000}s for ${activeTasks.size} tasks on $todayStr")
+            } catch (e: Exception) {
+                Log.e("ReminderManager", "Failed to schedule today tasks reminder: ${e.message}")
+            }
+        }
     }
 
     /**
-     * Cancels a scheduled task reminder.
+     * Cancels the single consolidated task reminder.
      */
-    fun cancelTaskReminder(context: Context, taskId: String) {
+    fun cancelTodayTasksReminder(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val intent = Intent(context, ReminderReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            taskId.hashCode(),
+            TASK_REMINDER_NOTIFICATION_ID,
             intent,
             getPendingIntentFlags()
         )
@@ -187,7 +208,42 @@ object ReminderManager {
     }
 
     /**
-     * Reschedules all active reminders (Daily Planning & active Task Reminders).
+     * Dismisses the active task reminder notification from the status bar.
+     */
+    fun dismissTaskNotification(context: Context) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        notificationManager.cancel(TASK_REMINDER_NOTIFICATION_ID)
+    }
+
+    /**
+     * Helper to keep compatibility with existing callers.
+     * Consolidates all task updates to schedule a single combined reminder for today's active tasks.
+     */
+    fun scheduleTaskReminder(
+        context: Context,
+        taskId: String? = null,
+        taskTitle: String? = null,
+        delayMs: Long? = null
+    ) {
+        scheduleTodayTasksReminder(context, delayMs)
+    }
+
+    fun scheduleHourlyTaskReminder(
+        context: Context,
+        taskId: String? = null,
+        taskTitle: String? = null,
+        delayMs: Long? = null
+    ) {
+        scheduleTodayTasksReminder(context, delayMs)
+    }
+
+    fun cancelTaskReminder(context: Context, taskId: String? = null) {
+        scheduleTodayTasksReminder(context)
+    }
+
+    /**
+     * Reschedules all active reminders (Daily Planning & single consolidated Today's Task Reminder).
      */
     fun rescheduleAllReminders(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -195,12 +251,11 @@ object ReminderManager {
             val settings = db.settingsDao().getSettingsOnce()
             if (settings != null && settings.reminderEnabled) {
                 scheduleDailyPlanningReminder(context, settings.reminderTime)
-                val activeTasks = db.taskDao().getAllTasksOnce().filter { it.status == "ACTIVE" }
-                activeTasks.forEach { task ->
-                    scheduleTaskReminder(context, task.id, task.title)
-                }
+                scheduleTodayTasksReminder(context)
             } else {
                 cancelDailyPlanningReminder(context)
+                cancelTodayTasksReminder(context)
+                dismissTaskNotification(context)
             }
         }
     }

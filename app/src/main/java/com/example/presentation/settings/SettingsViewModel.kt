@@ -9,6 +9,7 @@ import com.example.data.repository.SettingsRepositoryImpl
 import com.example.data.repository.TaskRepositoryImpl
 import com.example.domain.model.Priority
 import com.example.domain.model.Settings
+import com.example.reminder.ReminderManager
 import com.example.util.DateUtil
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,26 +32,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val current = settings.value
             settingsRepository.updateSettings(current.copy(reminderEnabled = enabled))
-            val allTasks = database.taskDao().getAllTasksOnce()
-            val activeTasks = allTasks.filter { it.status == "ACTIVE" }
             if (enabled) {
-                com.example.reminder.ReminderManager.scheduleDailyPlanningReminder(
+                ReminderManager.scheduleDailyPlanningReminder(
                     getApplication(),
                     current.reminderTime
                 )
-                activeTasks.forEach { task ->
-                    com.example.reminder.ReminderManager.scheduleHourlyTaskReminder(
-                        getApplication(),
-                        task.id,
-                        task.title
-                    )
-                }
+                ReminderManager.scheduleTodayTasksReminder(getApplication())
                 com.example.analytics.AnalyticsManager.logEvent(getApplication(), "reminder_enabled")
             } else {
-                com.example.reminder.ReminderManager.cancelDailyPlanningReminder(getApplication())
-                activeTasks.forEach { task ->
-                    com.example.reminder.ReminderManager.cancelTaskReminder(getApplication(), task.id)
-                }
+                ReminderManager.cancelDailyPlanningReminder(getApplication())
+                ReminderManager.cancelTodayTasksReminder(getApplication())
+                ReminderManager.dismissTaskNotification(getApplication())
                 com.example.analytics.AnalyticsManager.logEvent(getApplication(), "reminder_disabled")
             }
         }
@@ -61,7 +53,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val current = settings.value
             settingsRepository.updateSettings(current.copy(reminderTime = timeMs))
             if (current.reminderEnabled) {
-                com.example.reminder.ReminderManager.scheduleDailyPlanningReminder(getApplication(), timeMs)
+                ReminderManager.scheduleDailyPlanningReminder(getApplication(), timeMs)
             }
         }
     }
@@ -70,6 +62,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val current = settings.value
             settingsRepository.updateSettings(current.copy(reminderRepetition = repetition))
+            if (current.reminderEnabled) {
+                ReminderManager.scheduleTodayTasksReminder(getApplication())
+            }
         }
     }
 
@@ -112,6 +107,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 taskRepository.deleteTodayData(DateUtil.getLogicalToday())
+                ReminderManager.scheduleTodayTasksReminder(getApplication())
                 Log.d("SettingsViewModel", "Deleted all tasks for Today.")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "Error deleting today data", e)
@@ -134,6 +130,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 taskRepository.clearHistory()
+                ReminderManager.scheduleTodayTasksReminder(getApplication())
                 Log.d("SettingsViewModel", "Cleared all task history.")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "Error clearing history", e)
@@ -142,7 +139,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun exportHistoryToJson(): String {
-        // Simple manual JSON serializer for exporting history
         return "{\"app\":\"TSKIE\",\"exportedAt\":${System.currentTimeMillis()}}"
     }
 }

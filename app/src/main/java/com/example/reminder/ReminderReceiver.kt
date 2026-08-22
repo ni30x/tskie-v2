@@ -9,71 +9,88 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
+import com.example.data.local.AppDatabase
+import com.example.util.DateUtil
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val type = intent.getStringExtra(EXTRA_REMINDER_TYPE) ?: return
-        val taskId = intent.getStringExtra(EXTRA_TASK_ID)
-        val title = intent.getStringExtra(EXTRA_REMINDER_TITLE) ?: "Task Reminder"
-        val message = intent.getStringExtra(EXTRA_REMINDER_MESSAGE) ?: ""
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
 
-        val db = com.example.data.local.AppDatabase.getDatabase(context)
-        val settingsEntity = runBlocking {
+        val db = AppDatabase.getDatabase(context)
+        val settingsEntity = runBlocking(Dispatchers.IO) {
             db.settingsDao().getSettingsOnce()
         }
 
         if (settingsEntity != null && !settingsEntity.reminderEnabled) {
-            if (!taskId.isNullOrEmpty()) {
-                ReminderManager.cancelTaskReminder(context, taskId)
-            } else if (type == TYPE_PLANNING) {
-                ReminderManager.cancelDailyPlanningReminder(context)
-            }
+            ReminderManager.cancelDailyPlanningReminder(context)
+            ReminderManager.cancelTodayTasksReminder(context)
+            ReminderManager.dismissTaskNotification(context)
             return
         }
 
         if (type == TYPE_PLANNING) {
+            val title = intent.getStringExtra(EXTRA_REMINDER_TITLE) ?: "Daily Planning"
+            val message = intent.getStringExtra(EXTRA_REMINDER_MESSAGE) ?: "Take a moment to plan your tasks for tomorrow."
+            
             showNotification(
                 context = context,
                 title = title.ifEmpty { "Daily Planning" },
                 message = message.ifEmpty { "Take a moment to plan your tasks for tomorrow." },
-                notificationId = notificationId,
+                bigText = null,
+                notificationId = ReminderManager.DAILY_PLANNING_NOTIFICATION_ID,
                 navTarget = "tomorrow"
             )
             // Reschedule Daily Planning Reminder for tomorrow
             if (settingsEntity != null) {
                 ReminderManager.scheduleDailyPlanningReminder(context, settingsEntity.reminderTime)
             }
-        } else if (type == TYPE_TASK && !taskId.isNullOrEmpty()) {
-            val task = runBlocking {
-                db.taskDao().getTaskById(taskId)
+        } else if (type == TYPE_TASK) {
+            // ONLY check active tasks for TODAY
+            val todayStr = DateUtil.getLogicalToday()
+            val activeTasks = runBlocking(Dispatchers.IO) {
+                db.taskDao().getActiveTasksForDateOnce(todayStr)
             }
 
-            // If task is missing, completed, or deleted: cancel task reminders immediately
-            if (task == null || task.status != "ACTIVE") {
-                ReminderManager.cancelTaskReminder(context, taskId)
+            // If no active tasks remain for today, cancel reminder and dismiss any notification
+            if (activeTasks.isEmpty()) {
+                ReminderManager.cancelTodayTasksReminder(context)
+                ReminderManager.dismissTaskNotification(context)
                 return
             }
 
-            showNotification(
-                context = context,
-                title = title.ifEmpty { "Task Pending" },
-                message = message.ifEmpty { "Don't forget to complete: ${task.title}" },
-                notificationId = notificationId,
-                navTarget = "today"
-            )
+            val taskCount = activeTasks.size
+            val title = if (taskCount == 1) {
+                "1 Task Pending Today"
+            } else {
+                "$taskCount Tasks Pending Today"
+            }
 
-            // Reschedule next task reminder
-            ReminderManager.scheduleHourlyTaskReminder(context, task.id, task.title)
-        } else {
+            val shortMessage = if (taskCount == 1) {
+                "Don't forget: ${activeTasks[0].title}"
+            } else {
+                activeTasks.joinToString(", ") { it.title }
+            }
+
+            val expandedText = if (taskCount == 1) {
+                "Don't forget to complete:\n• ${activeTasks[0].title}"
+            } else {
+                "Tasks to complete today:\n" + activeTasks.joinToString("\n") { "• ${it.title}" }
+            }
+
             showNotification(
                 context = context,
                 title = title,
-                message = message,
-                notificationId = notificationId,
+                message = shortMessage,
+                bigText = expandedText,
+                notificationId = ReminderManager.TASK_REMINDER_NOTIFICATION_ID,
                 navTarget = "today"
             )
+
+            // Reschedule next task reminder for today's tasks
+            ReminderManager.scheduleTodayTasksReminder(context)
         }
     }
 
@@ -81,6 +98,7 @@ class ReminderReceiver : BroadcastReceiver() {
         context: Context,
         title: String,
         message: String,
+        bigText: String?,
         notificationId: Int,
         navTarget: String
     ) {
@@ -115,16 +133,19 @@ class ReminderReceiver : BroadcastReceiver() {
             pendingIntentFlags
         )
 
-        val notification = NotificationCompat.Builder(context, channelId)
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .build()
 
-        notificationManager.notify(notificationId, notification)
+        if (!bigText.isNullOrEmpty()) {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+        }
+
+        notificationManager.notify(notificationId, builder.build())
     }
 
     companion object {

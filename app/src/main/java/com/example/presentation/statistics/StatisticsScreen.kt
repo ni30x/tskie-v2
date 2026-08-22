@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.model.Priority
 import com.example.domain.model.Task
 import com.example.domain.model.TaskStatus
@@ -52,8 +53,12 @@ fun StatisticsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val statsState by viewModel.statsState.collectAsState()
-    val allTasks by viewModel.allTasks.collectAsState()
+    val statsState by viewModel.statsState.collectAsStateWithLifecycle()
+    val allTasks by viewModel.allTasks.collectAsStateWithLifecycle()
+
+    val consolidatedStats = remember(allTasks) {
+        computeConsolidatedStats(allTasks)
+    }
 
     LazyColumn(
         modifier = modifier
@@ -209,21 +214,21 @@ fun StatisticsScreen(
         // GRAPH 1: Smooth Line Chart with Gradient Fill
         // ==========================================
         item {
-            LineChartCard(allTasks = allTasks)
+            LineChartCard(stats = consolidatedStats.lineChartByFilter)
         }
 
         // ==========================================
         // GRAPH 2: Dual Grouped Vertical Bar Chart
         // ==========================================
         item {
-            GroupedBarChartCard(allTasks = allTasks)
+            GroupedBarChartCard(stats = consolidatedStats.groupedBarByFilter)
         }
 
         // ==========================================
         // GRAPH 3: Stacked Multi-Layered Area Chart
         // ==========================================
         item {
-            StackedAreaChartCard(allTasks = allTasks)
+            StackedAreaChartCard(stats = consolidatedStats.stackedAreaByFilter)
         }
 
         // Performance Metrics Cards
@@ -262,11 +267,7 @@ fun StatisticsScreen(
 
         // Priority Distribution Card
         item {
-            val activeTasks = allTasks.filter { it.status != TaskStatus.DELETED }
-            val highCount = activeTasks.count { it.priority == Priority.HIGH }
-            val mediumCount = activeTasks.count { it.priority == Priority.MEDIUM }
-            val lowCount = activeTasks.count { it.priority == Priority.LOW }
-            val total = activeTasks.size.coerceAtLeast(1)
+            val (highCount, mediumCount, lowCount, total) = consolidatedStats.priorityDistribution
 
             GlassBox(
                 modifier = Modifier.fillMaxWidth(),
@@ -300,12 +301,13 @@ fun StatisticsScreen(
 // COMPONENT 1: Line Chart connected to app tasks
 // ==========================================
 @Composable
-private fun LineChartCard(allTasks: List<Task>) {
+private fun LineChartCard(stats: Map<String, LineChartData>) {
     var selectedFilter by remember { mutableStateOf("Weekly") }
 
-    val (linePoints, labels, totalCompletedInPeriod) = remember(allTasks, selectedFilter) {
-        computeLineChartData(allTasks, selectedFilter)
-    }
+    val chartData = stats[selectedFilter] ?: LineChartData(emptyList(), emptyList(), 0)
+    val linePoints = chartData.points
+    val labels = chartData.labels
+    val totalCompletedInPeriod = chartData.totalCompleted
 
     GlassBox(
         modifier = Modifier.fillMaxWidth(),
@@ -472,12 +474,12 @@ private fun LineChartCard(allTasks: List<Task>) {
 // COMPONENT 2: Grouped Bar Chart connected to app tasks
 // ==========================================
 @Composable
-private fun GroupedBarChartCard(allTasks: List<Task>) {
+private fun GroupedBarChartCard(stats: Map<String, GroupedBarData>) {
     var selectedFilter by remember { mutableStateOf("Weekly") }
 
-    val (dataPairs, dates) = remember(allTasks, selectedFilter) {
-        computeGroupedBarData(allTasks, selectedFilter)
-    }
+    val chartData = stats[selectedFilter] ?: GroupedBarData(emptyList(), emptyList())
+    val dataPairs = chartData.pairs
+    val dates = chartData.dates
 
     GlassBox(
         modifier = Modifier.fillMaxWidth(),
@@ -604,12 +606,15 @@ private fun GroupedBarChartCard(allTasks: List<Task>) {
 // COMPONENT 3: Stacked Multi-Layered Area Chart connected to app tasks
 // ==========================================
 @Composable
-private fun StackedAreaChartCard(allTasks: List<Task>) {
+private fun StackedAreaChartCard(stats: Map<String, StackedAreaData>) {
     var selectedFilter by remember { mutableStateOf("Weekly") }
 
-    val (backLayerPoints, frontLayerPoints, labels, activeLoadCount, efficiencyRate) = remember(allTasks, selectedFilter) {
-        computeStackedAreaData(allTasks, selectedFilter)
-    }
+    val chartData = stats[selectedFilter] ?: StackedAreaData(emptyList(), emptyList(), emptyList(), 0, 0)
+    val backLayerPoints = chartData.backLayerPoints
+    val frontLayerPoints = chartData.frontLayerPoints
+    val labels = chartData.labels
+    val activeLoadCount = chartData.activeLoadCount
+    val efficiencyRate = chartData.efficiencyRate
 
     GlassBox(
         modifier = Modifier.fillMaxWidth(),
@@ -772,11 +777,88 @@ private fun StackedAreaChartCard(allTasks: List<Task>) {
 // DYNAMIC TASK DATA CALCULATION HELPERS
 // ==========================================
 
-private fun computeLineChartData(
-    allTasks: List<Task>,
-    filter: String
-): Triple<List<Float>, List<String>, Int> {
+private data class LineChartData(
+    val points: List<Float>,
+    val labels: List<String>,
+    val totalCompleted: Int
+)
+
+private data class GroupedBarData(
+    val pairs: List<Pair<Float, Float>>,
+    val dates: List<String>
+)
+
+private data class StackedAreaData(
+    val backLayerPoints: List<Float>,
+    val frontLayerPoints: List<Float>,
+    val labels: List<String>,
+    val activeLoadCount: Int,
+    val efficiencyRate: Int
+)
+
+private data class PriorityDistribution(
+    val highCount: Int,
+    val mediumCount: Int,
+    val lowCount: Int,
+    val total: Int
+)
+
+private class ConsolidatedStats(
+    val lineChartByFilter: Map<String, LineChartData>,
+    val groupedBarByFilter: Map<String, GroupedBarData>,
+    val stackedAreaByFilter: Map<String, StackedAreaData>,
+    val priorityDistribution: PriorityDistribution
+)
+
+private fun computeConsolidatedStats(allTasks: List<Task>): ConsolidatedStats {
     val validTasks = allTasks.filter { it.status != TaskStatus.DELETED }
+
+    var highCount = 0
+    var mediumCount = 0
+    var lowCount = 0
+    var activeCount = 0
+    var totalCompleted = 0
+
+    for (task in validTasks) {
+        when (task.priority) {
+            Priority.HIGH -> highCount++
+            Priority.MEDIUM -> mediumCount++
+            Priority.LOW -> lowCount++
+        }
+        when (task.status) {
+            TaskStatus.ACTIVE -> activeCount++
+            TaskStatus.COMPLETED -> totalCompleted++
+            else -> {}
+        }
+    }
+
+    val totalCreated = validTasks.size
+    val totalPriority = totalCreated.coerceAtLeast(1)
+    val efficiency = if (totalCreated > 0) (totalCompleted * 100) / totalCreated else 0
+
+    val filters = listOf("Today", "Weekly", "Monthly")
+    val lineMap = filters.associateWith { filter ->
+        computeLineChartData(validTasks, filter)
+    }
+    val barMap = filters.associateWith { filter ->
+        computeGroupedBarData(validTasks, filter)
+    }
+    val areaMap = filters.associateWith { filter ->
+        computeStackedAreaData(validTasks, filter, activeCount, efficiency)
+    }
+
+    return ConsolidatedStats(
+        lineChartByFilter = lineMap,
+        groupedBarByFilter = barMap,
+        stackedAreaByFilter = areaMap,
+        priorityDistribution = PriorityDistribution(highCount, mediumCount, lowCount, totalPriority)
+    )
+}
+
+private fun computeLineChartData(
+    validTasks: List<Task>,
+    filter: String
+): LineChartData {
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val calendar = Calendar.getInstance()
     val todayStr = sdf.format(calendar.time)
@@ -804,7 +886,7 @@ private fun computeLineChartData(
             val points = counts.map { count ->
                 if (total == 0 || maxCount == 0) 0.0f else (0.1f + 0.85f * (count.toFloat() / maxCount.toFloat()))
             }
-            return Triple(points, labels, total)
+            return LineChartData(points, labels, total)
         }
         "Weekly" -> {
             val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
@@ -831,7 +913,7 @@ private fun computeLineChartData(
             val points = counts.map { count ->
                 if (total == 0 || maxCount == 0) 0.0f else (0.1f + 0.85f * (count.toFloat() / maxCount.toFloat()))
             }
-            return Triple(points, labels, total)
+            return LineChartData(points, labels, total)
         }
         else -> { // "Monthly"
             val labels = listOf("W1", "W2", "W3", "W4", "W5", "W6", "W7")
@@ -855,16 +937,15 @@ private fun computeLineChartData(
             val points = counts.map { count ->
                 if (total == 0 || maxCount == 0) 0.0f else (0.1f + 0.85f * (count.toFloat() / maxCount.toFloat()))
             }
-            return Triple(points, labels, total)
+            return LineChartData(points, labels, total)
         }
     }
 }
 
 private fun computeGroupedBarData(
-    allTasks: List<Task>,
+    validTasks: List<Task>,
     filter: String
-): Pair<List<Pair<Float, Float>>, List<String>> {
-    val validTasks = allTasks.filter { it.status != TaskStatus.DELETED }
+): GroupedBarData {
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val shortSdf = SimpleDateFormat("MMM d", Locale.US)
 
@@ -915,7 +996,7 @@ private fun computeGroupedBarData(
                 val creatR = if (creat == 0 || maxVal == 0f) 0f else (creat.toFloat() / maxVal).coerceIn(0.1f, 1f)
                 pairs.add(Pair(compR, creatR))
             }
-            return Pair(pairs, dates)
+            return GroupedBarData(pairs, dates)
         }
         "Weekly" -> {
             val dates = mutableListOf<String>()
@@ -946,7 +1027,7 @@ private fun computeGroupedBarData(
                     if (creat == 0 || maxVal == 0f) 0f else (creat.toFloat() / maxVal).coerceIn(0.1f, 1f)
                 )
             }
-            return Pair(pairs, dates)
+            return GroupedBarData(pairs, dates)
         }
         else -> { // "Monthly"
             val dates = listOf("Wk 1", "Wk 2", "Wk 3", "Wk 4")
@@ -978,21 +1059,17 @@ private fun computeGroupedBarData(
                     if (creat == 0 || maxVal == 0f) 0f else (creat.toFloat() / maxVal).coerceIn(0.1f, 1f)
                 )
             }
-            return Pair(pairs, dates)
+            return GroupedBarData(pairs, dates)
         }
     }
 }
 
 private fun computeStackedAreaData(
-    allTasks: List<Task>,
-    filter: String
-): Tuple5<List<Float>, List<Float>, List<String>, Int, Int> {
-    val validTasks = allTasks.filter { it.status != TaskStatus.DELETED }
-    val activeCount = validTasks.count { it.status == TaskStatus.ACTIVE }
-    val totalCreated = validTasks.size
-    val totalCompleted = validTasks.count { it.status == TaskStatus.COMPLETED }
-    val efficiency = if (totalCreated > 0) (totalCompleted * 100) / totalCreated else 0
-
+    validTasks: List<Task>,
+    filter: String,
+    activeCount: Int,
+    efficiency: Int
+): StackedAreaData {
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val cal = Calendar.getInstance()
 
@@ -1066,7 +1143,7 @@ private fun computeStackedAreaData(
             val maxValW = backPoints.maxOrNull() ?: 0f
             val normBackW = backPoints.map { if (it == 0f || maxValW == 0f) 0f else (0.15f + 0.8f * (it / maxValW)) }
             val normFrontW = frontPoints.map { if (it == 0f || maxValW == 0f) 0f else (0.08f + 0.75f * (it / maxValW)) }
-            return Tuple5(normBackW, normFrontW, weekLabels, activeCount, efficiency)
+            return StackedAreaData(normBackW, normFrontW, weekLabels, activeCount, efficiency)
         }
         else -> { // "Monthly"
             labels = listOf("W1", "W2", "W3", "W4", "W5", "W6", "W7")
@@ -1102,16 +1179,8 @@ private fun computeStackedAreaData(
     val normBack = backPoints.map { if (it == 0f || maxVal == 0f) 0f else (0.15f + 0.8f * (it / maxVal)) }
     val normFront = frontPoints.map { if (it == 0f || maxVal == 0f) 0f else (0.08f + 0.75f * (it / maxVal)) }
 
-    return Tuple5(normBack, normFront, labels, activeCount, efficiency)
+    return StackedAreaData(normBack, normFront, labels, activeCount, efficiency)
 }
-
-private data class Tuple5<A, B, C, D, E>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D,
-    val fifth: E
-)
 
 @Composable
 private fun TimeFilterPill(

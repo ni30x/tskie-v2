@@ -1,7 +1,7 @@
 # TSKIE
 
 <p align="center">
-  <a href="https://github.com/ni30x/tskie-v2/releases/download/v1.1/app-debug.apk">
+  <a href="https://github.com/ni30x/tskie-v2/releases/download/release/app-debug.apk">
     <img src="https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android" alt="Download APK">
   </a>
   <a href="https://github.com/ni30x/tskie-v2/releases/tag/v1.1">
